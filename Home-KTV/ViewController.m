@@ -16,6 +16,8 @@
 
 @property (nonatomic,strong) AVAudioPlayer *audioPlayer;
 
+@property (nonatomic,strong) AVAudioRecorder *audioRecorder;
+
 @end
 
 @implementation ViewController
@@ -33,12 +35,15 @@
     
     self.navigationItem.title = @"Home-KTV";
     
-    [self setupPlayer];
+    [self setupAudioPlayer];
     
-    [self setupRecorder];
+    [self setupAudioRecorder];
 }
 
-- (void)setupPlayer{
+/**
+ initialize audio player
+ */
+- (void)setupAudioPlayer{
     NSString *resourceName = @"荀彧.mp3";
     NSString *filePath = [[NSBundle mainBundle] pathForResource:resourceName ofType:nil];
     NSURL *fileUrl = [NSURL fileURLWithPath:filePath];
@@ -65,8 +70,14 @@
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(routeChange:) name:AVAudioSessionRouteChangeNotification object:nil];
 }
 
-- (void)setupRecorder{
-    AVAudioRecorder *audioRecorder = [AVAudioRecorder ];
+/**
+ initialize audio recorder
+ */
+- (void)setupAudioRecorder{
+    // create path to save recorded file if not exist
+    
+    
+    AVAudioRecorder *audioRecorder = [AVAudioRecorder alloc];
 }
 
 - (void)routeChange:(NSNotification *)notification{
