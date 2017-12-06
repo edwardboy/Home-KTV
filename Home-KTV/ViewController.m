@@ -7,13 +7,16 @@
 //
 
 #import "ViewController.h"
-
 #import <AVFoundation/AVFoundation.h>
-//#import <MediaPlayer/MediaPlayer.h> // 废弃
+#import <AudioUnit/AudioUnit.h>
+
+#import "FSAudioStream.h"
 
 #define kRecordAudioFile @"myRecord.caf"
 
-@interface ViewController ()<AVAudioPlayerDelegate,AVAudioRecorderDelegate>
+@interface ViewController ()<AVAudioPlayerDelegate,AVAudioRecorderDelegate>{
+    FSAudioStream *audioStream;
+}
 
 @property (nonatomic,strong) AVAudioPlayer *audioPlayer;
 
@@ -23,10 +26,25 @@
 
 @implementation ViewController
 
+
+/**
+ 测试
+ */
+- (void)playPCMWithFSAudioStream{
+    NSString *resourceName = @"荀彧.mp3";
+    NSString *filePath = [[NSBundle mainBundle] pathForResource:resourceName ofType:nil];
+    NSURL *fileUrl = [NSURL fileURLWithPath:filePath];
+    
+    audioStream = [[FSAudioStream alloc] initWithUrl:fileUrl];
+    [audioStream play];
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     
     [self setupView];
+    
+//    [self playPCMWithFSAudioStream];
 }
 
 /**
@@ -59,7 +77,13 @@
 - (NSURL *)getDestFileUrl{
     // create path to save recorded file if not exist
     NSString *urlStr=[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) lastObject];
+    NSLog(@"home---%@",urlStr);
     urlStr = [urlStr stringByAppendingPathComponent:@"荀彧_合成.m4a"];
+    
+    if ([[NSFileManager defaultManager] fileExistsAtPath:urlStr]) {
+        [[NSFileManager defaultManager] removeItemAtPath:urlStr error:nil];
+    }
+    
     NSURL *url=[NSURL fileURLWithPath:urlStr];
     return url;
 }
@@ -68,10 +92,6 @@
  initialize audio player
  */
 - (void)setupAudioPlayer{
-//    NSString *resourceName = @"荀彧.mp3";
-//    NSString *filePath = [[NSBundle mainBundle] pathForResource:resourceName ofType:nil];
-//    NSURL *fileUrl = [NSURL fileURLWithPath:filePath];
-    
     NSError *error;
     _audioPlayer = [[AVAudioPlayer alloc] initWithContentsOfURL:[self getSourceFileUrl] error:&error];
     _audioPlayer.numberOfLoops = 0;
@@ -188,45 +208,34 @@
     if ([self.audioRecorder isRecording]) {
         [self.audioRecorder stop];
     }
-    
+
     // 合成
     NSURL *resourceFileUrl = [self getSourceFileUrl];
     NSURL *recordFileUrl = [self getRecordFileUrl];
-    
+
     [self audioMerge:@[resourceFileUrl,recordFileUrl] destUrl:[self getDestFileUrl]];
 }
 
+//  音频合并
 - (void)audioMerge:(NSArray *)dataSource destUrl:(NSURL *)destUrl{
-    AVURLAsset *videoAsset1 = [[AVURLAsset alloc] initWithURL:dataSource[0] options:nil];
-    AVURLAsset *videoAsset2 = [[AVURLAsset alloc] initWithURL:dataSource[1] options:nil];
+    
+    AVURLAsset *videoAsset1 = [[AVURLAsset alloc] initWithURL:dataSource[0] options:nil];   // 伴奏
+    AVURLAsset *videoAsset2 = [[AVURLAsset alloc] initWithURL:dataSource[1] options:nil];   // 录音
     
     //音频轨迹(一般视频至少有2个轨道,一个播放声音,一个播放画面.音频有一个)
     AVAssetTrack *assetTrack1 = [[videoAsset1 tracksWithMediaType:AVMediaTypeAudio] objectAtIndex:0];
     AVAssetTrack *assetTrack2 = [[videoAsset2 tracksWithMediaType:AVMediaTypeAudio] objectAtIndex:0];
     
     AVMutableComposition *mixComposition = [AVMutableComposition composition];
-    // 开始时间
-//    CMTime beginTime = kCMTimeZero;
-    // 设置音频合并音轨
+    
+    // 伴奏音频轨迹(取录音时长)
     AVMutableCompositionTrack *compositionAudioTrack = [mixComposition addMutableTrackWithMediaType:AVMediaTypeAudio preferredTrackID:kCMPersistentTrackID_Invalid];
-    
     [compositionAudioTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, videoAsset2.duration) ofTrack:assetTrack1 atTime:kCMTimeZero error:nil];
-    [compositionAudioTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, videoAsset2.duration) ofTrack:assetTrack2 atTime:kCMTimeZero error:nil];
     
-//    NSError *error = nil;
-//    for (NSURL *sourceURL in dataSource) {
-//        //音频文件资源
-//        AVURLAsset *audioAsset = [[AVURLAsset alloc] initWithURL:sourceURL options:nil];
-//        //需要合并的音频文件的区间
-//        CMTimeRange audio_timeRange = CMTimeRangeMake(kCMTimeZero, audioAsset.duration);
-//        // ofTrack 音频文件内容
-//        BOOL success = [compositionAudioTrack insertTimeRange:audio_timeRange ofTrack:[[audioAsset tracksWithMediaType:AVMediaTypeAudio] firstObject] atTime:beginTime error:&error];
-//
-//        if (!success) {
-//            NSLog(@"Error: %@",error);
-//        }
-//        beginTime = CMTimeAdd(beginTime, audioAsset.duration);
-//    }
+    // 录音音频轨迹
+    AVMutableCompositionTrack *compositionAudioTrack1 = [mixComposition addMutableTrackWithMediaType:AVMediaTypeAudio preferredTrackID:kCMPersistentTrackID_Invalid];
+    [compositionAudioTrack1 insertTimeRange:CMTimeRangeMake(kCMTimeZero, videoAsset2.duration) ofTrack:assetTrack2 atTime:kCMTimeZero error:nil];
+    
     // presetName 与 outputFileType 要对应  导出合并的音频
     AVAssetExportSession* assetExportSession = [[AVAssetExportSession alloc] initWithAsset:mixComposition presetName:AVAssetExportPresetAppleM4A];
     assetExportSession.outputURL = destUrl;
